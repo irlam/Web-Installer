@@ -188,6 +188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<li>Files updated: ' . htmlspecialchars((string)$filesChanged) . '</li>';
                 $duf = $summary['defaultUserFile'] ?? __DIR__ . '/database/default_user.txt';
                 echo '<li>Default user file: ' . (file_exists($duf) ? '✅ ' . htmlspecialchars(basename($duf)) : '⚠️ not found') . '</li>';
+                echo '<li>.env created: ' . $ok(($summary['envCreated'] ?? false)) . '</li>';
+                echo '<li>config.php created: ' . $ok(($summary['configCreated'] ?? false)) . '</li>';
+                $cfgUpd = (int)($summary['configFilesUpdated'] ?? 0);
+                echo '<li>Config files updated: ' . htmlspecialchars((string)$cfgUpd) . '</li>';
                 if (!empty($summary['zipFile'])) { echo '<li>Package used: ' . htmlspecialchars($summary['zipFile']) . '</li>'; }
                 if (!empty($summary['schemaFile'])) { echo '<li>Schema used: ' . htmlspecialchars($summary['schemaFile']) . '</li>'; }
                 echo '</ul></div>';

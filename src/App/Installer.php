@@ -400,6 +400,9 @@ HTACCESS;
                 'defaultUserFile' => null,
                 'zipFile' => null,
                 'schemaFile' => null,
+                'envCreated' => false,
+                'configCreated' => false,
+                'configFilesUpdated' => 0,
             ];
             // Extract website ZIP
             $zipPath = __DIR__ . '/../../packages/website.zip';
@@ -467,6 +470,13 @@ HTACCESS;
             // Update files for domain
             $result['filesChanged'] = $this->updateFiles(__DIR__ . '/../..', $this->domain, $this->subdomains);
 
+            // Generate .env or config.php if possible, and update existing config patterns
+            $baseDir = dirname(__DIR__, 2);
+            $gen = $this->generateAppConfig($baseDir);
+            if ($gen['envCreated']) { $result['envCreated'] = true; }
+            if ($gen['configCreated']) { $result['configCreated'] = true; }
+            $result['configFilesUpdated'] = $this->updateConfigurationPatterns($baseDir);
+
             // Generate default user file
             $this->generateDefaultUserFile();
             $result['defaultUserFile'] = realpath(__DIR__ . '/../../database/default_user.txt');
@@ -502,6 +512,11 @@ HTACCESS;
                 // Replace placeholders
                 $content = str_replace('__DOMAIN__', $domain, $content);
 
+                // Replace common example URLs with the chosen domain (assume https)
+                $appUrl = 'https://' . $domain;
+                $content = str_replace('https://example.com', $appUrl, $content);
+                $content = str_replace('http://example.com', $appUrl, $content);
+
                 // Handle subdomains
                 foreach ($subdomains as $sub) {
                     $content = str_replace("https://$domain", "https://$sub.$domain", $content);
@@ -512,6 +527,139 @@ HTACCESS;
                     file_put_contents($file->getPathname(), $content);
                     $changed++;
                 }
+            }
+        }
+        return $changed;
+    }
+
+    /**
+     * Generate application configuration files from inputs
+     * - If .env.example exists, create .env with DB and APP_URL
+     * - Else, if config.sample.php exists, create config.php replacing tokens
+     */
+    private function generateAppConfig($baseDir)
+    {
+        $result = ['envCreated' => false, 'configCreated' => false];
+        $appUrl = 'https://' . $this->domain;
+        $envExample = $baseDir . '/.env.example';
+        $envFile = $baseDir . '/.env';
+        if (file_exists($envExample) && !file_exists($envFile)) {
+            $content = file_get_contents($envExample);
+            // Replace or append keys
+            $pairs = [
+                'APP_URL' => $appUrl,
+                'DB_HOST' => $this->dbHost,
+                'DB_DATABASE' => $this->dbName,
+                'DB_NAME' => $this->dbName, // Some templates use DB_NAME
+                'DB_USERNAME' => $this->dbUser,
+                'DB_USER' => $this->dbUser,
+                'DB_PASSWORD' => $this->dbPass,
+                'DB_PORT' => '3306',
+            ];
+            foreach ($pairs as $key => $val) {
+                if (preg_match('/^' . preg_quote($key, '/') . '=/m', $content)) {
+                    $content = preg_replace('/^' . preg_quote($key, '/') . '=.*$/m', $key . '=' . $val, $content);
+                } else {
+                    $content .= "\n$key=$val";
+                }
+            }
+            // Set APP_KEY if placeholder present
+            if (preg_match('/^APP_KEY=\s*$/m', $content) || strpos($content, 'APP_KEY=') === false) {
+                $content .= "\nAPP_KEY=base64:" . base64_encode(random_bytes(32));
+            }
+            @file_put_contents($envFile, $content);
+            if (file_exists($envFile)) { $result['envCreated'] = true; }
+        }
+
+        // Generate config.php from config.sample.php tokens if applicable
+        $sample = $baseDir . '/config.sample.php';
+        $target = $baseDir . '/config.php';
+    if (file_exists($sample) && !file_exists($target)) {
+            $content = file_get_contents($sample);
+            $repl = [
+                '__APP_URL__' => $appUrl,
+                '__DB_HOST__' => $this->dbHost,
+                '__DB_NAME__' => $this->dbName,
+                '__DB_USER__' => $this->dbUser,
+                '__DB_PASS__' => $this->dbPass,
+            ];
+            $content = strtr($content, $repl);
+            @file_put_contents($target, $content);
+            if (file_exists($target)) { $result['configCreated'] = true; }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Update common configuration patterns across text files
+     */
+    private function updateConfigurationPatterns($baseDir)
+    {
+        $changed = 0;
+        $appUrl = 'https://' . $this->domain;
+
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($baseDir, \RecursiveDirectoryIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if (!$file->isFile()) continue;
+            $ext = strtolower($file->getExtension());
+            if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg','ico','zip','tar','gz','bz2','xz','7z','pdf','woff','woff2','ttf','otf'])) continue;
+
+            $path = $file->getPathname();
+            $isEnv = basename($path) === '.env';
+            $isPhp = $ext === 'php';
+            $isConfigish = stripos($path, '/config') !== false || preg_match('/(^|\/)config\.(php|ini|json|yaml|yml)$/i', $path);
+
+            $content = file_get_contents($path);
+            $orig = $content;
+
+            // .env style
+            if ($isEnv) {
+                $content = preg_replace('/^APP_URL=.*/m', 'APP_URL=' . $appUrl, $content);
+                $content = preg_replace('/^DB_HOST=.*/m', 'DB_HOST=' . $this->dbHost, $content);
+                $content = preg_replace('/^DB_DATABASE=.*/m', 'DB_DATABASE=' . $this->dbName, $content);
+                $content = preg_replace('/^DB_NAME=.*/m', 'DB_NAME=' . $this->dbName, $content);
+                $content = preg_replace('/^DB_USERNAME=.*/m', 'DB_USERNAME=' . $this->dbUser, $content);
+                $content = preg_replace('/^DB_USER=.*/m', 'DB_USER=' . $this->dbUser, $content);
+                $content = preg_replace('/^DB_PASSWORD=.*/m', 'DB_PASSWORD=' . $this->dbPass, $content);
+            }
+
+            // PHP define('DB_*', '...')
+            if ($isPhp) {
+                $re = [
+                    '/define\([\"\']DB_HOST[\"\'],\s*[\"\'][^\"\']*[\"\']\)/' => "define('DB_HOST','{$this->dbHost}')",
+                    '/define\([\"\']DB_NAME[\"\'],\s*[\"\'][^\"\']*[\"\']\)/' => "define('DB_NAME','{$this->dbName}')",
+                    '/define\([\"\']DB_DATABASE[\"\'],\s*[\"\'][^\"\']*[\"\']\)/' => "define('DB_DATABASE','{$this->dbName}')",
+                    '/define\([\"\']DB_USER(NAME)?[\"\'],\s*[\"\'][^\"\']*[\"\']\)/' => "define('DB_USERNAME','{$this->dbUser}')",
+                    '/define\([\"\']DB_PASSWORD[\"\'],\s*[\"\'][^\"\']*[\"\']\)/' => "define('DB_PASSWORD','{$this->dbPass}')",
+                    '/define\([\"\']APP_URL[\"\'],\s*[\"\'][^\"\']*[\"\']\)/' => "define('APP_URL','{$appUrl}')",
+                ];
+                foreach ($re as $pattern => $rep) {
+                    $content = preg_replace($pattern, $rep, $content);
+                }
+            }
+
+            // Array-style config updates only for config-ish files
+            if ($isPhp && $isConfigish) {
+                $re2 = [
+                    '/([\"\']db_host[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbHost}'",
+                    '/([\"\']host[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbHost}'",
+                    '/([\"\']db_name[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbName}'",
+                    '/([\"\']database(name)?[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbName}'",
+                    '/([\"\']db_user(name)?[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbUser}'",
+                    '/([\"\']username[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbUser}'",
+                    '/([\"\']db_pass(word)?[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbPass}'",
+                    '/([\"\']password[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$this->dbPass}'",
+                    '/([\"\']app_url[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$appUrl}'",
+                ];
+                foreach ($re2 as $pattern => $rep) {
+                    $content = preg_replace($pattern, $rep, $content);
+                }
+            }
+
+            if ($content !== $orig) {
+                @file_put_contents($path, $content);
+                $changed++;
             }
         }
         return $changed;
