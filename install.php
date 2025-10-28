@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installer->setCredentials($dbHost, $dbName, $dbUser, $dbPass);
             $installer->setDomain($domain, $subdomains);
             if ($installer->runInstallation()) {
-                echo "<p>Installation complete! Default user added. Delete install.php and database/default_user.txt for security.</p>";
+                echo "<p>Installation complete! Default user added. Delete install.php and database/default_user.txt for security. Ensure the domain field is filled as example.com (not https://example.com).</p>";
                 exit;
             } else {
                 $errors[] = 'Installation failed. Check logs for details.';
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-group">
                 <label for="subdomains">Subdomains (Optional)</label>
                 <input type="text" id="subdomains" name="subdomains" placeholder="e.g., www,api,blog">
-                <div class="help">Comma-separated list of subdomains (e.g., www, api). These will be configured alongside the primary domain.</div>
+                <div class="help">Comma-separated list of subdomains (e.g., www,api). If using a subdomain as primary, enter the base domain here and the subdomain below.</div>
             </div>
             <div class="form-group">
                 <label for="db_host">Database Host</label>
