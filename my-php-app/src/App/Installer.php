@@ -13,10 +13,26 @@ class Installer
     private $errors = [];
     private $warnings = [];
     private $config = [];
+    private $domain;
+    private $subdomains;
 
     public function __construct()
     {
-        $this->checkPhpVersion();
+        $this->checkRequirements();
+    }
+
+    public function setCredentials($dbHost, $dbName, $dbUser, $dbPass)
+    {
+        $this->dbHost = $dbHost;
+        $this->dbName = $dbName;
+        $this->dbUser = $dbUser;
+        $this->dbPass = $dbPass;
+    }
+
+    public function setDomain($domain, $subdomains = [])
+    {
+        $this->domain = $domain;
+        $this->subdomains = $subdomains;
     }
 
     public function promptForCredentials()
@@ -28,10 +44,16 @@ class Installer
         $this->dbPass = trim(fgets(STDIN));
     }
 
-    private function checkPhpVersion()
+    private function checkRequirements()
     {
-        if (version_compare(PHP_VERSION, '7.4', '<')) {
-            die("PHP version 7.4 or higher is required. Current version: " . PHP_VERSION . "\n");
+        if (version_compare(PHP_VERSION, '8.0', '<')) {
+            throw new \Exception("PHP 8.0+ required.");
+        }
+        if (!extension_loaded('pdo') || !extension_loaded('pdo_mysql')) {
+            throw new \Exception("PDO and PDO MySQL extensions required.");
+        }
+        if (!is_writable(__DIR__ . '/../..')) {
+            throw new \Exception("Directory not writable.");
         }
     }
 
@@ -345,97 +367,61 @@ HTACCESS;
     }
 
     /**
-     * Complete installation process
+     * Web-based installation process
      */
-    public function runInstallation($config)
+    public function runInstallation()
     {
-        echo "Starting installation...\n\n";
+        try {
+            // Connect to DB
+            $db = new \Config\Database($this->dbHost, $this->dbName, $this->dbUser, $this->dbPass);
 
-        // Step 1: Check system requirements
-        echo "Checking system requirements...\n";
-        if (!$this->checkSystemRequirements()) {
-            $this->displayErrors();
-            return false;
-        }
-        echo "✓ System requirements met\n\n";
-
-        // Step 2: Validate configuration
-        echo "Validating configuration...\n";
-        if (!$this->validateConfiguration($config)) {
-            $this->displayErrors();
-            return false;
-        }
-        echo "✓ Configuration valid\n\n";
-
-        // Step 3: Test database connection
-        echo "Testing database connection...\n";
-        if (!$this->testDatabaseConnection(
-            $config['db_host'] ?? 'localhost',
-            $config['db_user'],
-            $config['db_pass'] ?? '',
-            $config['db_name'],
-            $config['db_driver'] ?? 'mysql',
-            $config['db_port'] ?? 3306
-        )) {
-            $this->displayErrors();
-            $this->rollback();
-            return false;
-        }
-        echo "✓ Database connection successful\n\n";
-
-        // Step 4: Setup directories
-        echo "Setting up directories...\n";
-        if (!$this->setupDirectories()) {
-            $this->displayErrors();
-            $this->rollback();
-            return false;
-        }
-        echo "✓ Directories created\n\n";
-
-        // Step 5: Generate environment file
-        echo "Generating environment file...\n";
-        if (!$this->generateEnvironmentFile($config)) {
-            $this->displayErrors();
-            $this->rollback();
-            return false;
-        }
-        echo "✓ Environment file created\n\n";
-
-        // Step 6: Setup database schema (if provided)
-        if (!empty($config['schema_file'])) {
-            echo "Setting up database schema...\n";
-            $this->dbHost = $config['db_host'] ?? 'localhost';
-            $this->dbName = $config['db_name'];
-            $this->dbUser = $config['db_user'];
-            $this->dbPass = $config['db_pass'] ?? '';
-            $this->dbDriver = $config['db_driver'] ?? 'mysql';
-            
-            if (!$this->setupDatabaseSchema($config['schema_file'])) {
-                $this->displayErrors();
-                $this->rollback();
-                return false;
+            // Run schema
+            $schemaPath = __DIR__ . '/../../sql/schema.sql';
+            if (file_exists($schemaPath)) {
+                $sql = file_get_contents($schemaPath);
+                $db->getConnection()->exec($sql);
             }
-            echo "✓ Database schema created\n\n";
+
+            // Update files for domain
+            $this->updateFiles(__DIR__ . '/../..', $this->domain, $this->subdomains);
+
+            // Generate default user file
+            $this->generateDefaultUserFile();
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
         }
+    }
 
-        // Step 7: Generate .htaccess
-        echo "Generating .htaccess file...\n";
-        $this->generateHtaccess();
-        echo "✓ .htaccess file created\n\n";
+    private function updateFiles($dir, $domain, $subdomains)
+    {
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file->isFile() && !in_array($file->getExtension(), ['jpg', 'png', 'gif', 'zip', 'tar', 'sql'])) {
+                $content = file_get_contents($file->getPathname());
+                $original = $content;
 
-        // Step 8: Check permissions
-        echo "Checking file permissions...\n";
-        $this->checkPermissions();
-        echo "✓ Permissions checked\n\n";
+                // Replace placeholders
+                $content = str_replace('__DOMAIN__', $domain, $content);
 
-        // Display warnings if any
-        $this->displayWarnings();
+                // Handle subdomains
+                foreach ($subdomains as $sub) {
+                    $content = str_replace("https://$domain", "https://$sub.$domain", $content);
+                    $content = str_replace("http://$domain", "http://$sub.$domain", $content);
+                }
 
-        // Step 9: Cleanup
-        $this->cleanup();
+                if ($content !== $original) {
+                    file_put_contents($file->getPathname(), $content);
+                }
+            }
+        }
+    }
 
-        echo "\n✓ Installation completed successfully!\n\n";
-        return true;
+    private function generateDefaultUserFile()
+    {
+        $content = "Default Admin User:\nUsername: admin\nPassword: defaultpass123\nEmail: admin@example.com\n";
+        file_put_contents(__DIR__ . '/../../database/default_user.txt', $content);
     }
 
     /**
