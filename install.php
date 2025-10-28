@@ -10,6 +10,21 @@ function installer_log($msg) {
     @file_put_contents($__LOG_FILE, '[' . date('c') . "] " . $msg . "\n", FILE_APPEND);
 }
 
+// Download logs endpoint (force download of logs.txt)
+if (isset($_GET['download']) && $_GET['download'] === 'logs') {
+    $path = $__LOG_FILE;
+    if (is_file($path) && is_readable($path)) {
+        header('Content-Type: text/plain');
+        header('Content-Disposition: attachment; filename="logs.txt"');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
+    } else {
+        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        echo 'Log file not found.';
+    }
+    exit;
+}
+
 // Load Composer autoloader if present
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
@@ -86,13 +101,14 @@ if (($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['cleanup'])) {
     foreach (['index.php','index.html'] as $candidate) {
         if (file_exists(__DIR__ . '/' . $candidate)) { $siteIndex = './' . $candidate; break; }
     }
-    echo '<div style="display:flex;gap:10px;">';
+    echo '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
     if ($siteIndex) {
         echo '<a href="' . htmlspecialchars($siteIndex) . '" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
     } else {
         echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Go to site root</a>';
     }
     echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
+    echo '<a href="install.php?download=logs" style="background:#1565c0;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download logs</a>';
     echo '</div>';
     echo '</div>';
     exit;
@@ -165,9 +181,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<li><strong>Configure SSL</strong>: ensure your domain/subdomain resolves correctly and TLS is configured in your hosting panel.</li>';
                 echo '<li><strong>Optional</strong>: remove <code>packages/website.zip</code> after verification.</li>';
                 echo '</ol>';
-                echo '<div style="display:flex;gap:10px;">';
+                echo '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
                 echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
                 echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
+                echo '<a href="install.php?download=logs" style="background:#1565c0;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download logs</a>';
                 echo '</div>';
                 // Cleanup form to remove installer files and launch site
                 echo '<div style="margin-top:16px;padding:12px;border:1px solid #eee;border-radius:8px;background:#fafafa;">';
