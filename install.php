@@ -31,10 +31,7 @@ if (!class_exists('Config\\Database')) {
         installer_log('Missing Database.php at ' . $dbPath);
     }
 }
-
-use App\\Installer;
-
-$installer = new Installer();
+$installer = new \App\Installer();
 installer_log('Installer instantiated. PHP ' . PHP_VERSION);
 $errors = [];
 
