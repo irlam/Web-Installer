@@ -88,6 +88,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p>Welcome! This installer will set up your website on a new domain or hosting. It will extract the website files from <code>packages/website.zip</code>, configure the database from the included schema, update files with your domain details, and add a default admin user. Follow the steps below and provide the required information.</p>
             <p><strong>Note:</strong> Ensure your hosting supports PHP 8.0+ and MySQL. Back up your data before proceeding. <em>Current PHP version: <?php echo PHP_VERSION; ?></em></p>
         </div>
+        <?php
+        // Preflight checks (displayed on GET and POST)
+        $checks = [];
+        $checks['PHP >= 8.0'] = version_compare(PHP_VERSION, '8.0', '>=');
+        $checks['PDO extension'] = extension_loaded('pdo');
+        $checks['PDO MySQL'] = extension_loaded('pdo_mysql');
+        $checks['ZipArchive'] = class_exists('ZipArchive');
+        $dbPath = __DIR__ . '/src/Config/Database.php';
+        $checks['Database.php exists'] = file_exists($dbPath);
+        $checks['Database.php readable'] = is_readable($dbPath);
+        // Try to load Database.php if not loaded
+        if (!class_exists('Config\\Database') && file_exists($dbPath)) {
+            require_once $dbPath;
+        }
+        $checks['Config\\Database available'] = class_exists('Config\\Database');
+        $pkgZip = __DIR__ . '/packages/website.zip';
+        $checks['packages/website.zip present'] = file_exists($pkgZip);
+        ?>
+        <div class="form-group" style="background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;">
+            <label>Preflight Checks</label>
+            <ul style="margin:0;">
+                <?php foreach ($checks as $label => $ok): ?>
+                    <li style="color: <?php echo $ok ? '#2e7d32' : '#c62828'; ?>;">
+                        <?php echo $ok ? '✓' : '✗'; ?> <?php echo htmlspecialchars($label); ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if (!$checks['Config\\Database available']): ?>
+                <div class="help" style="color:#c62828;">
+                    Database class not loaded. Ensure the file exists at <code>src/Config/Database.php</code> and is readable. The namespace should be <code>namespace Config;</code> and the class name <code>Database</code>.
+                </div>
+            <?php endif; ?>
+        </div>
         <?php if ($errors): ?>
             <div class="error">
                 <ul><?php foreach ($errors as $e) echo "<li>$e</li>"; ?></ul>

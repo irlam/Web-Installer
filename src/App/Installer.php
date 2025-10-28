@@ -2,7 +2,13 @@
 
 namespace App;
 
-require_once __DIR__ . '/../Config/Database.php';
+// Best-effort include of Database class for hosts without autoloaders
+if (!class_exists('Config\\Database')) {
+    $dbBootstrap = __DIR__ . '/../Config/Database.php';
+    if (file_exists($dbBootstrap)) {
+        require_once $dbBootstrap;
+    }
+}
 
 class Installer
 {
