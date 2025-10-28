@@ -401,6 +401,10 @@ HTACCESS;
                 'domain' => (string)$this->domain,
                 'subdomains' => (array)$this->subdomains,
                 'zipExtracted' => false,
+                'zipFlattened' => false,
+                'zipFlattenedFrom' => null,
+                'zipFilesMoved' => 0,
+                'zipFilesSkipped' => 0,
                 'schemaImported' => false,
                 'filesChanged' => 0,
                 'defaultUserFile' => null,
@@ -429,6 +433,16 @@ HTACCESS;
                 $this->extractZip($zipPath, __DIR__ . '/../..');
                 $result['zipExtracted'] = true;
                 $result['zipFile'] = basename($zipPath);
+
+                // If the ZIP contains a single top-level folder, promote its contents to the root
+                $baseDir = dirname(__DIR__, 2);
+                $flat = $this->flattenExtractedIfSingleDir($baseDir, $zipPath);
+                if ($flat['flattened']) {
+                    $result['zipFlattened'] = true;
+                    $result['zipFlattenedFrom'] = $flat['source'];
+                    $result['zipFilesMoved'] = $flat['moved'];
+                    $result['zipFilesSkipped'] = $flat['skipped'];
+                }
             }
 
             // Connect to DB
@@ -519,6 +533,116 @@ HTACCESS;
             $zip->close();
         } else {
             throw new \Exception('Failed to extract ZIP file.');
+        }
+    }
+
+    /**
+     * If the ZIP contains a single top-level directory, move its contents up to the base dir (flatten).
+     * Returns an array: ['flattened'=>bool,'source'=>?string,'moved'=>int,'skipped'=>int]
+     */
+    private function flattenExtractedIfSingleDir($baseDir, $zipPath)
+    {
+        $info = ['flattened' => false, 'source' => null, 'moved' => 0, 'skipped' => 0];
+        $root = $this->getZipSingleRootDir($zipPath);
+        if (!$root) { return $info; }
+        $src = rtrim($baseDir, '/').'/'.rtrim($root, '/');
+        if (!is_dir($src)) { return $info; }
+
+        // Walk source and promote files/directories
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($src, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ($it as $item) {
+            $rel = substr($item->getPathname(), strlen($src) + 1);
+            $dest = $baseDir . '/' . $rel;
+            if ($item->isDir()) {
+                if (!is_dir($dest)) { @mkdir($dest, 0755, true); }
+            } else {
+                if (!file_exists($dest)) {
+                    // Try rename, fallback to copy/unlink
+                    if (!@rename($item->getPathname(), $dest)) {
+                        if (@copy($item->getPathname(), $dest)) {
+                            @unlink($item->getPathname());
+                        } else {
+                            $info['skipped']++;
+                            continue;
+                        }
+                    }
+                    $info['moved']++;
+                } else {
+                    $info['skipped']++;
+                }
+            }
+        }
+        // Attempt to remove now-empty directory tree
+        $this->rmdirRecursiveIfEmpty($src);
+        $info['flattened'] = true;
+        $info['source'] = trim($root, '/');
+        return $info;
+    }
+
+    /**
+     * Detect if a ZIP has a single top-level directory; return its name or null.
+     */
+    private function getZipSingleRootDir($zipPath)
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath) !== TRUE) { return null; }
+        $roots = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            if (!$stat || !isset($stat['name'])) continue;
+            $name = $stat['name'];
+            // normalize
+            $name = ltrim($name, '/');
+            if ($name === '') continue;
+            $parts = explode('/', $name, 2);
+            $roots[$parts[0]] = true;
+            if (count($roots) > 1) { $zip->close(); return null; }
+        }
+        $zip->close();
+        $keys = array_keys($roots);
+        if (count($keys) === 1 && $keys[0] !== '' && substr($keys[0], -4) !== '.php') {
+            return $keys[0];
+        }
+        return null;
+    }
+
+    /**
+     * Remove a directory tree only if all subdirectories become empty after promoting files.
+     */
+    private function rmdirRecursiveIfEmpty($dir)
+    {
+        if (!is_dir($dir)) return;
+        $items = scandir($dir);
+        if ($items === false) return;
+        foreach ($items as $it) {
+            if ($it === '.' || $it === '..') continue;
+            $p = $dir . '/' . $it;
+            if (is_dir($p)) {
+                $this->rmdirRecursiveIfEmpty($p);
+            } else {
+                // If files remain, don't delete the tree
+                return;
+            }
+        }
+        // If we got here, all children are directories (potentially empty now)
+        $items = scandir($dir);
+        if ($items !== false) {
+            $onlyDirs = true;
+            foreach ($items as $it) {
+                if ($it === '.' || $it === '..') continue;
+                if (!is_dir($dir . '/' . $it)) { $onlyDirs = false; break; }
+            }
+            if ($onlyDirs) {
+                // Try removing children first
+                foreach ($items as $it) {
+                    if ($it === '.' || $it === '..') continue;
+                    @rmdir($dir . '/' . $it);
+                }
+                @rmdir($dir);
+            }
         }
     }
 
