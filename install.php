@@ -1,6 +1,14 @@
 <?php
 // filepath: install.php
-require_once 'src/App/Installer.php';
+// Load core classes without Composer autoload
+require_once __DIR__ . '/src/App/Installer.php';
+// Proactively include Database to avoid class not found on some hosts
+if (!class_exists('Config\\Database')) {
+    $dbPath = __DIR__ . '/src/Config/Database.php';
+    if (file_exists($dbPath)) {
+        require_once $dbPath;
+    }
+}
 
 use App\Installer;
 
@@ -35,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Installation failed. Check logs for details.';
             }
         } catch (\Exception $e) {
-            error_log("Installer Error: " . $e->getMessage(), 3, __DIR__ . '/installer.log');
+            error_log("[Installer] Error: " . $e->getMessage(), 3, __DIR__ . '/installer.log');
             $errors[] = 'Installation failed: ' . $e->getMessage();
         }
     }

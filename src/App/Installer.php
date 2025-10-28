@@ -381,6 +381,18 @@ HTACCESS;
             }
 
             // Connect to DB
+            // Ensure Database class is available even without Composer autoload
+            if (!class_exists('Config\\Database')) {
+                $dbFile = __DIR__ . '/../Config/Database.php';
+                if (file_exists($dbFile)) {
+                    require_once $dbFile;
+                }
+            }
+            if (!class_exists('Config\\Database')) {
+                $msg = 'Config\\Database class not found. Expected file at src/Config/Database.php.';
+                error_log('[Installer] ' . $msg, 3, dirname(__DIR__, 2) . '/installer.log');
+                throw new \Exception($msg);
+            }
             $db = new \Config\Database($this->dbHost, $this->dbName, $this->dbUser, $this->dbPass);
 
             // Import DB from extracted database/schema.sql if exists
