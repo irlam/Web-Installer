@@ -35,6 +35,69 @@ $installer = new \App\Installer();
 installer_log('Installer instantiated. PHP ' . PHP_VERSION);
 $errors = [];
 
+// Optional: post-install cleanup to remove installer files
+if (($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['cleanup'])) {
+    $removed = [];
+    $failed = [];
+    $selected = isset($_POST['delete']) && is_array($_POST['delete']) ? $_POST['delete'] : [];
+    $map = [
+        'install.php' => __FILE__,
+        'index.html' => __DIR__ . '/index.html',
+        'database/default_user.txt' => __DIR__ . '/database/default_user.txt',
+        'packages/website.zip' => __DIR__ . '/packages/website.zip',
+        'install_result.json' => __DIR__ . '/install_result.json',
+        'logs.txt' => __DIR__ . '/logs.txt',
+    ];
+
+    foreach ($selected as $rel) {
+        if (!isset($map[$rel])) continue;
+        $path = $map[$rel];
+        if (file_exists($path)) {
+            // Try to delete; if delete of current file (install.php), it still completes execution
+            if (@unlink($path)) {
+                $removed[] = $rel;
+                installer_log('Cleanup: removed ' . $rel);
+            } else {
+                // Fallback to rename
+                $backup = $path . '.bak-' . time();
+                if (@rename($path, $backup)) {
+                    $removed[] = $rel . ' (renamed to ' . basename($backup) . ')';
+                    installer_log('Cleanup: renamed ' . $rel . ' to ' . basename($backup));
+                } else {
+                    $failed[] = $rel;
+                    installer_log('Cleanup: failed to remove ' . $rel);
+                }
+            }
+        }
+    }
+
+    // Render cleanup result panel
+    echo '<div style="max-width:700px;margin:20px auto;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:20px;">';
+    echo '<h2 style="margin-top:0;color:#2e7d32;">🧹 Cleanup Complete</h2>';
+    if ($removed) {
+        echo '<p>Removed:</p><ul>'; foreach ($removed as $r) { echo '<li>' . htmlspecialchars($r) . '</li>'; } echo '</ul>';
+    }
+    if ($failed) {
+        echo '<p style="color:#c62828;">Could not remove:</p><ul>'; foreach ($failed as $f) { echo '<li>' . htmlspecialchars($f) . '</li>'; } echo '</ul>';
+        echo '<p>Please delete these files manually via your hosting file manager or FTP.</p>';
+    }
+    // If a site index exists, suggest opening it
+    $siteIndex = null;
+    foreach (['index.php','index.html'] as $candidate) {
+        if (file_exists(__DIR__ . '/' . $candidate)) { $siteIndex = './' . $candidate; break; }
+    }
+    echo '<div style="display:flex;gap:10px;">';
+    if ($siteIndex) {
+        echo '<a href="' . htmlspecialchars($siteIndex) . '" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
+    } else {
+        echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Go to site root</a>';
+    }
+    echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
+    echo '</div>';
+    echo '</div>';
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $domain = trim($_POST['domain'] ?? '');
     $subdomains = array_map('trim', explode(',', $_POST['subdomains'] ?? ''));
@@ -105,6 +168,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<div style="display:flex;gap:10px;">';
                 echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
                 echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
+                echo '</div>';
+                // Cleanup form to remove installer files and launch site
+                echo '<div style="margin-top:16px;padding:12px;border:1px solid #eee;border-radius:8px;background:#fafafa;">';
+                echo '<h3 style="margin:10px 0;">Secure and launch your site</h3>';
+                echo '<form method="post" style="display:grid;gap:6px;">';
+                echo '<input type="hidden" name="cleanup" value="1">';
+                echo '<label><input type="checkbox" name="delete[]" value="install.php" checked> Delete install.php (this installer)</label>';
+                echo '<label><input type="checkbox" name="delete[]" value="index.html" checked> Delete index.html (installer landing)</label>';
+                echo '<label><input type="checkbox" name="delete[]" value="database/default_user.txt" checked> Delete database/default_user.txt</label>';
+                echo '<label><input type="checkbox" name="delete[]" value="packages/website.zip"> Delete packages/website.zip (optional)</label>';
+                echo '<label><input type="checkbox" name="delete[]" value="install_result.json"> Delete install_result.json (optional)</label>';
+                echo '<label><input type="checkbox" name="delete[]" value="logs.txt"> Delete logs.txt (optional)</label>';
+                echo '<div><button type="submit" style="background:#d32f2f;color:#fff;padding:10px 16px;border:none;border-radius:6px;cursor:pointer;">Secure and launch site</button></div>';
+                echo '</form>';
                 echo '</div>';
                 echo '</div>';
                 exit;
