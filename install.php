@@ -17,8 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbUser = trim($_POST['db_user'] ?? '');
     $dbPass = trim($_POST['db_pass'] ?? '');
 
-    if (empty($domain) || !filter_var("http://$domain", FILTER_VALIDATE_URL)) {
-        $errors[] = 'Valid primary domain required.';
+    if (empty($domain) || !preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $domain)) {
+        $errors[] = 'Valid primary domain required (e.g., example.com, no https://).';
     }
     if (empty($dbName) || empty($dbUser) || empty($dbPass)) {
         $errors[] = 'DB details required.';
@@ -32,10 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "<p>Installation complete! Default user added. Delete install.php and database/default_user.txt for security.</p>";
                 exit;
             } else {
-                $errors[] = 'Installation failed.';
+                $errors[] = 'Installation failed. Check logs for details.';
             }
         } catch (\Exception $e) {
-            $errors[] = $e->getMessage();
+            error_log("Installer Error: " . $e->getMessage(), 3, __DIR__ . '/installer.log');
+            $errors[] = 'Installation failed: ' . $e->getMessage();
         }
     }
 }
@@ -78,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-group">
                 <label for="domain">Primary Domain</label>
                 <input type="text" id="domain" name="domain" placeholder="e.g., example.com" required>
-                <div class="help">Enter your main domain name (without http:// or https://). This is the primary URL for your site.</div>
+                <div class="help">Enter your main domain name (e.g., example.com, without https:// or www).</div>
             </div>
             <div class="form-group">
                 <label for="subdomains">Subdomains (Optional)</label>
