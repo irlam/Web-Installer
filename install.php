@@ -25,6 +25,21 @@ if (isset($_GET['download']) && $_GET['download'] === 'logs') {
     exit;
 }
 
+// Download install summary endpoint (install_result.json)
+if (isset($_GET['download']) && $_GET['download'] === 'summary') {
+    $path = __DIR__ . '/install_result.json';
+    if (is_file($path) && is_readable($path)) {
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename="install_result.json"');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
+    } else {
+        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        echo 'Install summary not found. Run installation first.';
+    }
+    exit;
+}
+
 // Load Composer autoloader if present
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
@@ -109,6 +124,7 @@ if (($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['cleanup'])) {
     }
     echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
     echo '<a href="install.php?download=logs" style="background:#1565c0;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download logs</a>';
+    echo '<a href="install.php?download=summary" style="background:#6a1b9a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download install summary</a>';
     echo '</div>';
     echo '</div>';
     exit;
@@ -172,6 +188,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<li>Files updated: ' . htmlspecialchars((string)$filesChanged) . '</li>';
                 $duf = $summary['defaultUserFile'] ?? __DIR__ . '/database/default_user.txt';
                 echo '<li>Default user file: ' . (file_exists($duf) ? '✅ ' . htmlspecialchars(basename($duf)) : '⚠️ not found') . '</li>';
+                if (!empty($summary['zipFile'])) { echo '<li>Package used: ' . htmlspecialchars($summary['zipFile']) . '</li>'; }
+                if (!empty($summary['schemaFile'])) { echo '<li>Schema used: ' . htmlspecialchars($summary['schemaFile']) . '</li>'; }
                 echo '</ul></div>';
                 echo '</div>';
                 echo '<h3 style="margin:10px 0;">Next steps</h3>';
@@ -185,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
                 echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
                 echo '<a href="install.php?download=logs" style="background:#1565c0;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download logs</a>';
+                echo '<a href="install.php?download=summary" style="background:#6a1b9a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download install summary</a>';
                 echo '</div>';
                 // Cleanup form to remove installer files and launch site
                 echo '<div style="margin-top:16px;padding:12px;border:1px solid #eee;border-radius:8px;background:#fafafa;">';
@@ -258,8 +277,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once $dbPath;
         }
         $checks['Config\\Database available'] = class_exists('Config\\Database');
+        // Discover package zip (website.zip or first .zip in packages)
         $pkgZip = __DIR__ . '/packages/website.zip';
-        $checks['packages/website.zip present'] = file_exists($pkgZip);
+        $pkgUse = null;
+        if (file_exists($pkgZip)) {
+            $pkgUse = $pkgZip;
+        } else {
+            $pkgDir = __DIR__ . '/packages';
+            if (is_dir($pkgDir)) {
+                foreach (scandir($pkgDir) as $f) {
+                    if ($f === '.' || $f === '..') continue;
+                    if (strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'zip') { $pkgUse = $pkgDir . '/' . $f; break; }
+                }
+            }
+        }
+        $checks['Install package (zip) found'] = $pkgUse !== null;
+
+        // Discover schema sql (schema.sql or first .sql in database)
+        $schema = __DIR__ . '/database/schema.sql';
+        $schemaUse = null;
+        if (file_exists($schema)) {
+            $schemaUse = $schema;
+        } else {
+            $dbDir = __DIR__ . '/database';
+            if (is_dir($dbDir)) {
+                foreach (scandir($dbDir) as $f) {
+                    if ($f === '.' || $f === '..') continue;
+                    if (strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'sql') { $schemaUse = $dbDir . '/' . $f; break; }
+                }
+            }
+        }
+        $checks['Database schema (.sql) found'] = $schemaUse !== null;
         // Log preflight summary once per request
         installer_log('Preflight: ' . json_encode($checks));
         ?>
@@ -275,6 +323,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if (!$checks['Config\\Database available']): ?>
                 <div class="help" style="color:#c62828;">
                     Database class not loaded. Ensure the file exists at <code>src/Config/Database.php</code> and is readable. The namespace should be <code>namespace Config;</code> and the class name <code>Database</code>.
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($pkgUse) || !empty($schemaUse)): ?>
+                <div class="help" style="margin-top:8px;">
+                    <?php if (!empty($pkgUse)): ?><div>Using package: <code><?php echo htmlspecialchars(basename($pkgUse)); ?></code></div><?php endif; ?>
+                    <?php if (!empty($schemaUse)): ?><div>Using schema: <code><?php echo htmlspecialchars(basename($schemaUse)); ?></code></div><?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

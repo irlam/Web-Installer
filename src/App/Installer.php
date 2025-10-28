@@ -398,12 +398,28 @@ HTACCESS;
                 'schemaImported' => false,
                 'filesChanged' => 0,
                 'defaultUserFile' => null,
+                'zipFile' => null,
+                'schemaFile' => null,
             ];
             // Extract website ZIP
             $zipPath = __DIR__ . '/../../packages/website.zip';
+            if (!file_exists($zipPath)) {
+                // Fallback: first .zip in packages directory
+                $pkgDir = __DIR__ . '/../../packages';
+                if (is_dir($pkgDir)) {
+                    foreach (scandir($pkgDir) as $f) {
+                        if ($f === '.' || $f === '..') continue;
+                        if (strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'zip') {
+                            $zipPath = $pkgDir . '/' . $f;
+                            break;
+                        }
+                    }
+                }
+            }
             if (file_exists($zipPath)) {
                 $this->extractZip($zipPath, __DIR__ . '/../..');
                 $result['zipExtracted'] = true;
+                $result['zipFile'] = basename($zipPath);
             }
 
             // Connect to DB
@@ -428,10 +444,24 @@ HTACCESS;
 
             // Import DB from extracted database/schema.sql if exists
             $dbSchemaPath = __DIR__ . '/../../database/schema.sql';
+            if (!file_exists($dbSchemaPath)) {
+                // Fallback: first .sql in database directory
+                $dbDir = __DIR__ . '/../../database';
+                if (is_dir($dbDir)) {
+                    foreach (scandir($dbDir) as $f) {
+                        if ($f === '.' || $f === '..') continue;
+                        if (strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'sql') {
+                            $dbSchemaPath = $dbDir . '/' . $f;
+                            break;
+                        }
+                    }
+                }
+            }
             if (file_exists($dbSchemaPath)) {
                 $sql = file_get_contents($dbSchemaPath);
                 $db->getConnection()->exec($sql);
                 $result['schemaImported'] = true;
+                $result['schemaFile'] = basename($dbSchemaPath);
             }
 
             // Update files for domain

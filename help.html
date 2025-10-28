@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup & Deployment Guide</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:24px; }
+    .container { max-width: 900px; margin: 0 auto; background:#fff; border:1px solid #e0e0e0; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:24px; }
+    h1 { margin-top:0; }
+    h2 { margin:24px 0 8px; }
+    code { background:#f6f8fa; padding:2px 6px; border-radius:4px; }
+    .note { background:#fffde7; border:1px solid #fdd835; padding:10px; border-radius:6px; }
+    .ok { color:#2e7d32; }
+    .warn { color:#c62828; }
+    ul { line-height:1.6; }
+    .actions a { display:inline-block; margin-right:8px; margin-top:8px; padding:10px 16px; border-radius:6px; color:#fff; text-decoration:none; }
+    .btn-primary { background:#2e7d32; }
+    .btn-secondary { background:#1565c0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Setup & Deployment Guide</h1>
+
+    <p>This guide explains how to prepare your files, upload them, and run the web installer. It also answers common questions about file names and where things should go.</p>
+
+    <h2>1) What to upload</h2>
+    <ul>
+      <li>This installer (everything in this folder), including <code>install.php</code> and <code>index.html</code>.</li>
+      <li>Your site bundle as a ZIP inside <code>packages/</code>. Default name is <code>website.zip</code>.</li>
+      <li>Optional: a database schema file in <code>database/</code>, default name <code>schema.sql</code>.</li>
+    </ul>
+
+    <div class="note">
+      <strong>Good news:</strong> File names are flexible.
+      <ul>
+        <li>If <code>packages/website.zip</code> isn’t present, the installer will use the first <code>.zip</code> it finds in <code>packages/</code>.</li>
+        <li>If <code>database/schema.sql</code> isn’t present, the installer will use the first <code>.sql</code> it finds in <code>database/</code>.</li>
+      </ul>
+      <div>Sticking to the defaults is simplest, but you can use custom names.</div>
+    </div>
+
+    <h2>2) How the ZIP should be structured</h2>
+    <ul>
+      <li>Put your website files at the root of the ZIP (not nested under another top-level folder), unless you want that folder extracted into your web root.</li>
+      <li>If you include a schema in the ZIP, place it at <code>database/schema.sql</code> inside the archive so it lands in <code>database/</code> after extraction.</li>
+    </ul>
+
+    <h2>3) Database requirements</h2>
+    <ul>
+      <li>MySQL/MariaDB with a database created (or permissions to create one).</li>
+      <li>Installer uses PDO MySQL and sets UTF-8 (utf8mb4).</li>
+      <li>You will provide: host (optionally <code>host:port</code>), database name, user, and password.</li>
+    </ul>
+
+    <h2>4) Running the installer</h2>
+    <ul>
+      <li>Open <code>http://yourdomain.com/install.php</code>.</li>
+      <li>Fill domain and any subdomains (comma-separated, e.g., <code>www,api</code>).</li>
+      <li>Enter DB credentials and submit. The installer will:</li>
+      <ul>
+        <li>Extract your ZIP into the current directory.</li>
+        <li>Import <code>database/schema.sql</code> (or the first <code>.sql</code> found in <code>database/</code>).</li>
+        <li>Update files with your domain and subdomains.</li>
+        <li>Create <code>database/default_user.txt</code> with default admin info.</li>
+      </ul>
+    </ul>
+
+    <h2>5) After a successful install</h2>
+    <ul>
+      <li>Use the built-in <strong>Secure and launch</strong> cleanup to remove <code>install.php</code>, <code>index.html</code>, and other installer artifacts so your new site’s index loads.</li>
+      <li>Download logs and the install summary for your records.</li>
+      <li>Set file permissions as appropriate for your host and enable SSL.</li>
+    </ul>
+
+    <h2>FAQ</h2>
+    <p><strong>Do file names have to be exactly website.zip and schema.sql?</strong><br>
+      No. The installer prefers <code>packages/website.zip</code> and <code>database/schema.sql</code>, but if they’re missing, it picks the first <code>.zip</code> in <code>packages/</code> and the first <code>.sql</code> in <code>database/</code>.</p>
+
+    <p><strong>Where should I point my domain?</strong><br>
+      Upload these files to the document root for the domain or subdomain you’re setting up (typically <code>public_html</code> or the root folder assigned to the site).</p>
+
+    <p><strong>What if my site uses a different public directory?</strong><br>
+      Extracting will place files in this directory. If your app expects a <code>public</code> folder, ensure your hosting points the domain to that folder or adjust your app structure accordingly.</p>
+
+    <div class="actions">
+      <a href="install.php" class="btn-primary">Run Installer</a>
+      <a href="index.html" class="btn-secondary">Back to Welcome</a>
+    </div>
+  </div>
+</body>
+</html>
