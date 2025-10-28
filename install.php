@@ -1,25 +1,41 @@
 <?php
 // filepath: install.php
+// Simple log helper
+$__LOG_FILE = __DIR__ . '/logs.txt';
+if (!file_exists($__LOG_FILE)) {
+    @file_put_contents($__LOG_FILE, "[" . date('c') . "] Installer log created\n", FILE_APPEND);
+}
+function installer_log($msg) {
+    global $__LOG_FILE;
+    @file_put_contents($__LOG_FILE, '[' . date('c') . "] " . $msg . "\n", FILE_APPEND);
+}
+
 // Load Composer autoloader if present
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
+    installer_log('Composer autoload loaded.');
 }
 
 // Load core classes without Composer autoload
 require_once __DIR__ . '/src/App/Installer.php';
+installer_log('Installer.php loaded.');
+
 // Proactively include Database to avoid class not found on some hosts
 if (!class_exists('Config\\Database')) {
     $dbPath = __DIR__ . '/src/Config/Database.php';
+    installer_log('Attempting to include Database.php at: ' . $dbPath);
     if (file_exists($dbPath)) {
         require_once $dbPath;
+        installer_log('Database.php included. class_exists(Config\\Database)=' . (class_exists('Config\\Database') ? 'yes' : 'no'));
     } else {
-        error_log('[Installer] Missing Database.php at ' . $dbPath, 3, __DIR__ . '/installer.log');
+        installer_log('Missing Database.php at ' . $dbPath);
     }
 }
 
-use App\Installer;
+use App\\Installer;
 
 $installer = new Installer();
+installer_log('Installer instantiated. PHP ' . PHP_VERSION);
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbName = trim($_POST['db_name'] ?? '');
     $dbUser = trim($_POST['db_user'] ?? '');
     $dbPass = trim($_POST['db_pass'] ?? '');
+
+    installer_log('POST received. domain=' . $domain . ' subdomains=' . implode(',', $subdomains) . ' db_host=' . $dbHost . ' db_name=' . $dbName . ' user=' . $dbUser);
 
     if (empty($domain) || !preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $domain)) {
         $errors[] = 'Valid primary domain required (e.g., example.com, no https://).';
@@ -48,12 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installer->setDomain($domain, $subdomains);
             if ($installer->runInstallation()) {
                 echo "<p>Installation complete! Default user added. Delete install.php and database/default_user.txt for security. Ensure the domain field is filled as example.com (not https://example.com).</p>";
+                installer_log('Installation completed successfully.');
                 exit;
             } else {
-                $errors[] = 'Installation failed. Check logs for details.';
+                $errors[] = 'Installation failed. Check logs for details (logs.txt).';
+                installer_log('Installation returned false.');
             }
         } catch (\Exception $e) {
-            error_log("[Installer] Error: " . $e->getMessage(), 3, __DIR__ . '/installer.log');
+            installer_log('Exception: ' . $e->getMessage());
             $errors[] = 'Installation failed: ' . $e->getMessage();
         }
     }
@@ -105,6 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checks['Config\\Database available'] = class_exists('Config\\Database');
         $pkgZip = __DIR__ . '/packages/website.zip';
         $checks['packages/website.zip present'] = file_exists($pkgZip);
+        // Log preflight summary once per request
+        installer_log('Preflight: ' . json_encode($checks));
         ?>
         <div class="form-group" style="background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;">
             <label>Preflight Checks</label>

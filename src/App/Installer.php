@@ -189,19 +189,21 @@ class Installer
     public function generateSecurityKey()
     {
         return 'base64:' . base64_encode(random_bytes(32));
+            $logFile = dirname(__DIR__, 2) . '/logs.txt';
+            @file_put_contents($logFile, '[' . date('c') . "] runInstallation start\n", FILE_APPEND);
     }
 
     /**
      * Generate environment file from template
-     */
+                @error_log('[Installer] Extracting ZIP at ' . $zipPath . "\n", 3, $logFile);
+                $this->extractZip($zipPath, __DIR__ . '/../..');
     public function generateEnvironmentFile($config)
     {
         $baseDir = dirname(__DIR__, 2);
         $envExample = $baseDir . '/.env.example';
         $envFile = $baseDir . '/.env';
 
-        if (!file_exists($envExample)) {
-            $this->errors[] = ".env.example file not found";
+                error_log('[Installer] Checking Database class include at: ' . $dbFile . "\n", 3, $logFile);
             return false;
         }
 
@@ -211,26 +213,32 @@ class Installer
         $replacements = [
             'DB_HOST=127.0.0.1' => 'DB_HOST=' . ($config['db_host'] ?? '127.0.0.1'),
             'DB_PORT=3306' => 'DB_PORT=' . ($config['db_port'] ?? '3306'),
-            'DB_DATABASE=your_database_name' => 'DB_DATABASE=' . ($config['db_name'] ?? ''),
+                error_log('[Installer] ' . $msg . "\n", 3, $logFile);
             'DB_USERNAME=your_username' => 'DB_USERNAME=' . ($config['db_user'] ?? ''),
             'DB_PASSWORD=your_password' => 'DB_PASSWORD=' . ($config['db_pass'] ?? ''),
             'DB_CONNECTION=mysql' => 'DB_CONNECTION=' . ($config['db_driver'] ?? 'mysql'),
+            error_log('[Installer] Database connection object created' . "\n", 3, $logFile);
             'YOUR_APP_KEY_HERE' => base64_encode(random_bytes(32)), // Replace just the placeholder part, keeping 'base64:' prefix
             'APP_ENV=local' => 'APP_ENV=' . ($config['app_env'] ?? 'production'),
             'APP_DEBUG=true' => 'APP_DEBUG=' . ($config['app_debug'] ?? 'false'),
         ];
+                error_log('[Installer] Importing schema from ' . $dbSchemaPath . "\n", 3, $logFile);
 
         foreach ($replacements as $search => $replace) {
             $content = str_replace($search, $replace, $content);
         }
 
+            error_log('[Installer] Updating files for domain ' . $this->domain . ' with subdomains ' . implode(',', (array)$this->subdomains) . "\n", 3, $logFile);
         if (file_put_contents($envFile, $content) === false) {
             $this->errors[] = "Failed to create .env file";
             return false;
         }
 
+            error_log('[Installer] runInstallation success' . "\n", 3, $logFile);
         // Set appropriate permissions
         chmod($envFile, 0600);
+            $logFile = dirname(__DIR__, 2) . '/logs.txt';
+            error_log('[Installer] Exception: ' . $e->getMessage() . "\n", 3, $logFile);
 
         return true;
     }
