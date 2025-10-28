@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installer->setCredentials($dbHost, $dbName, $dbUser, $dbPass);
             $installer->setDomain($domain, $subdomains);
             if ($installer->runInstallation()) {
-                echo "<p>Installation complete! Default user added. Delete index.php and database/default_user.txt for security.</p>";
+                echo "<p>Installation complete! Default user added. Delete install.php and database/default_user.txt for security.</p>";
                 exit;
             } else {
                 $errors[] = 'Installation failed.';
