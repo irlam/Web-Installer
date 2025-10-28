@@ -606,9 +606,13 @@ HTACCESS;
             if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg','ico','zip','tar','gz','bz2','xz','7z','pdf','woff','woff2','ttf','otf'])) continue;
 
             $path = $file->getPathname();
+            // Skip common dependency directories
+            if (strpos($path, '/vendor/') !== false || strpos($path, '/node_modules/') !== false) continue;
             $isEnv = basename($path) === '.env';
             $isPhp = $ext === 'php';
             $isConfigish = stripos($path, '/config') !== false || preg_match('/(^|\/)config\.(php|ini|json|yaml|yml)$/i', $path);
+            $isJson = $ext === 'json';
+            $isYaml = ($ext === 'yaml' || $ext === 'yml');
 
             $content = file_get_contents($path);
             $orig = $content;
@@ -653,6 +657,66 @@ HTACCESS;
                     '/([\"\']app_url[\"\']\s*=>\s*)[\"\'][^\"\']*[\"\']/' => "$1'{$appUrl}'",
                 ];
                 foreach ($re2 as $pattern => $rep) {
+                    $content = preg_replace($pattern, $rep, $content);
+                }
+            }
+
+            // JSON config files: decode, update known keys recursively, re-encode
+            if ($isJson) {
+                $data = json_decode($content, true);
+                if (is_array($data)) {
+                    $keysMap = [
+                        'db_host' => $this->dbHost,
+                        'host' => $this->dbHost,
+                        'db_name' => $this->dbName,
+                        'database' => $this->dbName,
+                        'db_user' => $this->dbUser,
+                        'username' => $this->dbUser,
+                        'user' => $this->dbUser,
+                        'db_password' => $this->dbPass,
+                        'password' => $this->dbPass,
+                        'db_pass' => $this->dbPass,
+                        'app_url' => $appUrl,
+                        'url' => $appUrl,
+                    ];
+                    $before = json_encode($data);
+                    $update = function (&$arr) use (&$update, $keysMap) {
+                        foreach ($arr as $k => &$v) {
+                            if (is_array($v)) {
+                                $update($v);
+                            } else {
+                                $lk = strtolower((string)$k);
+                                if (isset($keysMap[$lk])) {
+                                    $v = $keysMap[$lk];
+                                }
+                            }
+                        }
+                    };
+                    $update($data);
+                    $after = json_encode($data);
+                    if ($after !== $before) {
+                        $content = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                    }
+                }
+            }
+
+            // YAML config files: targeted line replacements for common keys
+            if ($isYaml) {
+                // Replace top-level or indented key: value
+                $replYaml = [
+                    // Top-level
+                    '/^(\s*)db_host:\s*.*/mi' => "$1db_host: {$this->dbHost}",
+                    '/^(\s*)host:\s*.*/mi' => "$1host: {$this->dbHost}",
+                    '/^(\s*)db_name:\s*.*/mi' => "$1db_name: {$this->dbName}",
+                    '/^(\s*)database:\s*.*/mi' => "$1database: {$this->dbName}",
+                    '/^(\s*)db_user(name)?:\s*.*/mi' => "$1db_user: {$this->dbUser}",
+                    '/^(\s*)user(name)?:\s*.*/mi' => "$1username: {$this->dbUser}",
+                    '/^(\s*)db_pass(word)?:\s*.*/mi' => "$1db_password: {$this->dbPass}",
+                    '/^(\s*)password:\s*.*/mi' => "$1password: {$this->dbPass}",
+                    '/^(\s*)app_url:\s*.*/mi' => "$1app_url: {$appUrl}",
+                    '/^(\s*)url:\s*.*/mi' => "$1url: {$appUrl}",
+                ];
+                foreach ($replYaml as $pattern => $rep) {
                     $content = preg_replace($pattern, $rep, $content);
                 }
             }

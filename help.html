@@ -47,14 +47,14 @@
       <li>If you include a schema in the ZIP, place it at <code>database/schema.sql</code> inside the archive so it lands in <code>database/</code> after extraction.</li>
     </ul>
 
-    <h2>3) Database requirements</h2>
+  <h2>3) Database requirements</h2>
     <ul>
       <li>MySQL/MariaDB with a database created (or permissions to create one).</li>
       <li>Installer uses PDO MySQL and sets UTF-8 (utf8mb4).</li>
       <li>You will provide: host (optionally <code>host:port</code>), database name, user, and password.</li>
     </ul>
 
-    <h2>4) Running the installer</h2>
+  <h2>4) Running the installer</h2>
     <ul>
       <li>Open <code>http://yourdomain.com/install.php</code>.</li>
       <li>Fill domain and any subdomains (comma-separated, e.g., <code>www,api</code>).</li>
@@ -67,7 +67,7 @@
       </ul>
     </ul>
 
-    <h2>5) After a successful install</h2>
+  <h2>5) After a successful install</h2>
     <ul>
       <li>Use the built-in <strong>Secure and launch</strong> cleanup to remove <code>install.php</code>, <code>index.html</code>, and other installer artifacts so your new site’s index loads.</li>
       <li>Download logs and the install summary for your records.</li>
@@ -83,6 +83,9 @@
 
     <p><strong>What if my site uses a different public directory?</strong><br>
       Extracting will place files in this directory. If your app expects a <code>public</code> folder, ensure your hosting points the domain to that folder or adjust your app structure accordingly.</p>
+
+    <p><strong>Can the installer configure JSON or YAML config files?</strong><br>
+      Yes. The installer will attempt to update common keys in JSON and YAML config files (e.g., <code>db_host</code>, <code>database</code>, <code>username</code>/<code>user</code>, <code>password</code>, <code>app_url</code>/<code>url</code>). For JSON, it parses and updates keys recursively; for YAML, it performs safe line-based replacements for common patterns. If your config uses different key names, share an example and we’ll add them.</p>
 
     <div class="actions">
       <a href="install.php" class="btn-primary">Run Installer</a>
