@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="container">
         <h1>Website Installer</h1>
         <div class="intro">
-            <p>Welcome! This installer will set up your website on a new domain or hosting. It will configure the database, update files with your domain details, and add a default admin user. Follow the steps below and provide the required information.</p>
+            <p>Welcome! This installer will set up your website on a new domain or hosting. It will extract the website files from <code>packages/website.zip</code>, configure the database from the included schema, update files with your domain details, and add a default admin user. Follow the steps below and provide the required information.</p>
             <p><strong>Note:</strong> Ensure your hosting supports PHP 8.0+ and MySQL. Back up your data before proceeding. <em>Current PHP version: <?php echo PHP_VERSION; ?></em></p>
         </div>
         <?php if ($errors): ?>

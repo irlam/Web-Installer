@@ -372,13 +372,19 @@ HTACCESS;
     public function runInstallation()
     {
         try {
+            // Extract website ZIP
+            $zipPath = __DIR__ . '/../../packages/website.zip';
+            if (file_exists($zipPath)) {
+                $this->extractZip($zipPath, __DIR__ . '/../..');
+            }
+
             // Connect to DB
             $db = new \Config\Database($this->dbHost, $this->dbName, $this->dbUser, $this->dbPass);
 
-            // Run schema
-            $schemaPath = __DIR__ . '/../../sql/schema.sql';
-            if (file_exists($schemaPath)) {
-                $sql = file_get_contents($schemaPath);
+            // Import DB from extracted database/schema.sql if exists
+            $dbSchemaPath = __DIR__ . '/../../database/schema.sql';
+            if (file_exists($dbSchemaPath)) {
+                $sql = file_get_contents($dbSchemaPath);
                 $db->getConnection()->exec($sql);
             }
 
@@ -391,6 +397,17 @@ HTACCESS;
             return true;
         } catch (\Exception $e) {
             return false;
+        }
+    }
+
+    private function extractZip($zipPath, $extractTo)
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath) === TRUE) {
+            $zip->extractTo($extractTo);
+            $zip->close();
+        } else {
+            throw new \Exception('Failed to extract ZIP file.');
         }
     }
 
