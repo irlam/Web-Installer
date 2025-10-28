@@ -2,6 +2,8 @@
 
 namespace App;
 
+require_once __DIR__ . '/../Config/Database.php';
+
 class Installer
 {
     private $dbUser;
