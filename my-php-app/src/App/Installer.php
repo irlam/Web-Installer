@@ -130,8 +130,11 @@ class Installer
                     \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
                 ]);
                 
+                // Sanitize database name to prevent SQL injection
+                $sanitizedDbName = preg_replace('/[^a-zA-Z0-9_]/', '', $dbName);
+                
                 // Try to create database if it doesn't exist
-                $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                $pdo->exec("CREATE DATABASE IF NOT EXISTS `$sanitizedDbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
                 
                 return true;
             } elseif ($driver === 'pgsql') {
@@ -211,9 +214,17 @@ class Installer
             return true; // No schema file provided
         }
 
-        if (!file_exists($sqlFile)) {
+        // Prevent directory traversal attacks
+        $realPath = realpath($sqlFile);
+        if ($realPath === false || !file_exists($realPath)) {
             $this->warnings[] = "Database schema file not found: $sqlFile";
             return true;
+        }
+
+        // Ensure the file is readable and has .sql extension
+        if (!is_readable($realPath) || pathinfo($realPath, PATHINFO_EXTENSION) !== 'sql') {
+            $this->errors[] = "Invalid schema file: must be a readable .sql file";
+            return false;
         }
 
         try {
@@ -221,7 +232,7 @@ class Installer
             $pdo = new \PDO($dsn, $this->dbUser, $this->dbPass);
             $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
-            $sql = file_get_contents($sqlFile);
+            $sql = file_get_contents($realPath);
             $pdo->exec($sql);
 
             return true;
