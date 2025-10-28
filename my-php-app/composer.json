@@ -1,5 +1,5 @@
 {
-    "name": "my-php-app",
+    "name": "irlam/my-php-app",
     "description": "A PHP application for managing installations and configurations.",
     "type": "project",
     "require": {
@@ -18,7 +18,7 @@
         }
     },
     "scripts": {
-        "install": "php scripts/install.php"
+        "post-install-cmd": "php scripts/install.php"
     },
     "minimum-stability": "stable",
     "prefer-stable": true
