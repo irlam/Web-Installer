@@ -195,6 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<li>config.php created: ' . $ok(($summary['configCreated'] ?? false)) . '</li>';
                 $cfgUpd = (int)($summary['configFilesUpdated'] ?? 0);
                 echo '<li>Config files updated: ' . htmlspecialchars((string)$cfgUpd) . '</li>';
+                $hadIndex = isset($summary['docrootHasIndex']) ? (bool)$summary['docrootHasIndex'] : null;
+                if ($hadIndex === false) {
+                    echo '<li>Entry point created: ' . $ok(($summary['entryPointCreated'] ?? false)) . '</li>';
+                    if (!empty($summary['entryPointTarget'])) { echo '<li>Entry target: ' . htmlspecialchars($summary['entryPointTarget']) . '</li>'; }
+                } else if ($hadIndex === true) {
+                    echo '<li>Entry point existed: ✅</li>';
+                }
                 if (!empty($summary['zipFile'])) { echo '<li>Package used: ' . htmlspecialchars($summary['zipFile']) . '</li>'; }
                 if (!empty($summary['schemaFile'])) { echo '<li>Schema used: ' . htmlspecialchars($summary['schemaFile']) . '</li>'; }
                 if (!empty($summary['testPage'])) { echo '<li>Test page: ' . htmlspecialchars($summary['testPage']) . '</li>'; }
