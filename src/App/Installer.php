@@ -446,7 +446,7 @@ HTACCESS;
 
     private function updateFiles($dir, $domain, $subdomains)
     {
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS));
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS));
         foreach ($iterator as $file) {
             if ($file->isFile() && !in_array($file->getExtension(), ['jpg', 'png', 'gif', 'zip', 'tar', 'sql'])) {
                 $content = file_get_contents($file->getPathname());

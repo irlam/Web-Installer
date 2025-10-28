@@ -111,7 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checks['PHP >= 8.0'] = version_compare(PHP_VERSION, '8.0', '>=');
         $checks['PDO extension'] = extension_loaded('pdo');
         $checks['PDO MySQL'] = extension_loaded('pdo_mysql');
-        $checks['ZipArchive'] = class_exists('ZipArchive');
+    $checks['ZipArchive'] = class_exists('ZipArchive');
+    $checks['SPL Iterators'] = class_exists('RecursiveIteratorIterator') && class_exists('RecursiveDirectoryIterator');
         $dbPath = __DIR__ . '/src/Config/Database.php';
         $checks['Database.php exists'] = file_exists($dbPath);
         $checks['Database.php readable'] = is_readable($dbPath);
