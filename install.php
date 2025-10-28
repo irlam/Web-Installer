@@ -62,8 +62,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installer->setCredentials($dbHost, $dbName, $dbUser, $dbPass);
             $installer->setDomain($domain, $subdomains);
             if ($installer->runInstallation()) {
-                echo "<p>Installation complete! Default user added. Delete install.php and database/default_user.txt for security. Ensure the domain field is filled as example.com (not https://example.com).</p>";
+                // Load result summary if available
+                $summary = [];
+                $summaryPath = __DIR__ . '/install_result.json';
+                if (file_exists($summaryPath)) {
+                    $json = file_get_contents($summaryPath);
+                    $summary = json_decode($json, true) ?: [];
+                }
+
                 installer_log('Installation completed successfully.');
+
+                // Render success panel
+                echo '<div style="max-width:700px;margin:20px auto;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:20px;">';
+                echo '<h2 style="margin-top:0;color:#2e7d32;">✅ Installation Complete</h2>';
+                echo '<p>Your website has been installed successfully. Review the summary below and complete the final steps.</p>';
+                echo '<div style="display:flex;gap:20px;flex-wrap:wrap;">';
+                echo '<div style="flex:1 1 280px;"><h3 style="margin:10px 0;">Environment</h3><ul>';
+                echo '<li>PHP: ' . htmlspecialchars(PHP_VERSION) . '</li>';
+                echo '<li>Domain: ' . htmlspecialchars($summary['domain'] ?? $domain) . '</li>';
+                $subs = isset($summary['subdomains']) ? implode(',', (array)$summary['subdomains']) : implode(',', $subdomains);
+                echo '<li>Subdomains: ' . ($subs ? htmlspecialchars($subs) : '—') . '</li>';
+                echo '<li>DB Host: ' . htmlspecialchars($dbHost) . '</li>';
+                echo '<li>DB Name: ' . htmlspecialchars($dbName) . '</li>';
+                echo '</ul></div>';
+                echo '<div style="flex:1 1 280px;"><h3 style="margin:10px 0;">Actions</h3><ul>';
+                $ok = function($b){ return $b ? '✅' : '⚠️'; };
+                echo '<li>Extracted package: ' . $ok(($summary['zipExtracted'] ?? false)) . '</li>';
+                echo '<li>Imported schema: ' . $ok(($summary['schemaImported'] ?? false)) . '</li>';
+                $filesChanged = (int)($summary['filesChanged'] ?? 0);
+                echo '<li>Files updated: ' . htmlspecialchars((string)$filesChanged) . '</li>';
+                $duf = $summary['defaultUserFile'] ?? __DIR__ . '/database/default_user.txt';
+                echo '<li>Default user file: ' . (file_exists($duf) ? '✅ ' . htmlspecialchars(basename($duf)) : '⚠️ not found') . '</li>';
+                echo '</ul></div>';
+                echo '</div>';
+                echo '<h3 style="margin:10px 0;">Next steps</h3>';
+                echo '<ol>';
+                echo '<li><strong>Delete installers</strong>: remove <code>install.php</code>, <code>index.html</code> (if present), and <code>database/default_user.txt</code>.</li>';
+                echo '<li><strong>Secure files</strong>: ensure files are read-only for the web user where appropriate.</li>';
+                echo '<li><strong>Configure SSL</strong>: ensure your domain/subdomain resolves correctly and TLS is configured in your hosting panel.</li>';
+                echo '<li><strong>Optional</strong>: remove <code>packages/website.zip</code> after verification.</li>';
+                echo '</ol>';
+                echo '<div style="display:flex;gap:10px;">';
+                echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
+                echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
+                echo '</div>';
+                echo '</div>';
                 exit;
             } else {
                 $errors[] = 'Installation failed. Check logs for details (logs.txt).';

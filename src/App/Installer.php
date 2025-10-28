@@ -388,10 +388,22 @@ HTACCESS;
     public function runInstallation()
     {
         try {
+            // Structured result for success UI
+            $result = [
+                'timestamp' => date('c'),
+                'php_version' => PHP_VERSION,
+                'domain' => (string)$this->domain,
+                'subdomains' => (array)$this->subdomains,
+                'zipExtracted' => false,
+                'schemaImported' => false,
+                'filesChanged' => 0,
+                'defaultUserFile' => null,
+            ];
             // Extract website ZIP
             $zipPath = __DIR__ . '/../../packages/website.zip';
             if (file_exists($zipPath)) {
                 $this->extractZip($zipPath, __DIR__ . '/../..');
+                $result['zipExtracted'] = true;
             }
 
             // Connect to DB
@@ -419,14 +431,18 @@ HTACCESS;
             if (file_exists($dbSchemaPath)) {
                 $sql = file_get_contents($dbSchemaPath);
                 $db->getConnection()->exec($sql);
+                $result['schemaImported'] = true;
             }
 
             // Update files for domain
-            $this->updateFiles(__DIR__ . '/../..', $this->domain, $this->subdomains);
+            $result['filesChanged'] = $this->updateFiles(__DIR__ . '/../..', $this->domain, $this->subdomains);
 
             // Generate default user file
             $this->generateDefaultUserFile();
+            $result['defaultUserFile'] = realpath(__DIR__ . '/../../database/default_user.txt');
 
+            // Write summary for UI
+            @file_put_contents(dirname(__DIR__, 2) . '/install_result.json', json_encode($result, JSON_PRETTY_PRINT));
             return true;
         } catch (\Exception $e) {
             return false;
@@ -447,6 +463,7 @@ HTACCESS;
     private function updateFiles($dir, $domain, $subdomains)
     {
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS));
+        $changed = 0;
         foreach ($iterator as $file) {
             if ($file->isFile() && !in_array($file->getExtension(), ['jpg', 'png', 'gif', 'zip', 'tar', 'sql'])) {
                 $content = file_get_contents($file->getPathname());
@@ -463,9 +480,11 @@ HTACCESS;
 
                 if ($content !== $original) {
                     file_put_contents($file->getPathname(), $content);
+                    $changed++;
                 }
             }
         }
+        return $changed;
     }
 
     private function generateDefaultUserFile()
