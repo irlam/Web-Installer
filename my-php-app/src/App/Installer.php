@@ -182,7 +182,7 @@ class Installer
             'DB_USERNAME=your_username' => 'DB_USERNAME=' . ($config['db_user'] ?? ''),
             'DB_PASSWORD=your_password' => 'DB_PASSWORD=' . ($config['db_pass'] ?? ''),
             'DB_CONNECTION=mysql' => 'DB_CONNECTION=' . ($config['db_driver'] ?? 'mysql'),
-            'APP_KEY=base64:YOUR_APP_KEY_HERE' => 'APP_KEY=' . $this->generateSecurityKey(),
+            'YOUR_APP_KEY_HERE' => base64_encode(random_bytes(32)), // Replace just the placeholder part, keeping 'base64:' prefix
             'APP_ENV=local' => 'APP_ENV=' . ($config['app_env'] ?? 'production'),
             'APP_DEBUG=true' => 'APP_DEBUG=' . ($config['app_debug'] ?? 'false'),
         ];
@@ -276,11 +276,18 @@ HTACCESS;
      */
     public function validateConfiguration($config)
     {
-        $required = ['db_host', 'db_name', 'db_user'];
+        // Database name is always required
+        if (empty($config['db_name'])) {
+            $this->errors[] = "Required field missing: db_name";
+        }
         
-        foreach ($required as $field) {
-            if (empty($config[$field])) {
-                $this->errors[] = "Required field missing: $field";
+        // For non-SQLite databases, we need host and user
+        if (($config['db_driver'] ?? 'mysql') !== 'sqlite') {
+            if (empty($config['db_host'])) {
+                $this->errors[] = "Required field missing: db_host";
+            }
+            if (empty($config['db_user'])) {
+                $this->errors[] = "Required field missing: db_user";
             }
         }
 
@@ -320,11 +327,7 @@ HTACCESS;
      */
     public function cleanup()
     {
-        $baseDir = dirname(__DIR__, 2);
-        $installScript = $baseDir . '/scripts/install.php';
-        $installView = $baseDir . '/src/Views/install.php';
-
-        // Optionally remove installation files
+        // Warn user to manually delete installation files for security
         $this->warnings[] = "Remember to delete installation files: scripts/install.php and src/Views/install.php";
         
         return true;
