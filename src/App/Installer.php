@@ -384,13 +384,18 @@ HTACCESS;
             // Ensure Database class is available even without Composer autoload
             if (!class_exists('Config\\Database')) {
                 $dbFile = __DIR__ . '/../Config/Database.php';
+                $logFile = dirname(__DIR__, 2) . '/installer.log';
+                error_log('[Installer] Checking Database class include at: ' . $dbFile . "\n", 3, $logFile);
                 if (file_exists($dbFile)) {
                     require_once $dbFile;
+                    error_log('[Installer] Database.php included. class_exists(Config\\Database)=' . (class_exists('Config\\Database') ? 'yes' : 'no') . "\n", 3, $logFile);
+                } else {
+                    error_log('[Installer] Database.php file not found at: ' . $dbFile . "\n", 3, $logFile);
                 }
             }
             if (!class_exists('Config\\Database')) {
                 $msg = 'Config\\Database class not found. Expected file at src/Config/Database.php.';
-                error_log('[Installer] ' . $msg, 3, dirname(__DIR__, 2) . '/installer.log');
+                error_log('[Installer] ' . $msg . "\n", 3, dirname(__DIR__, 2) . '/installer.log');
                 throw new \Exception($msg);
             }
             $db = new \Config\Database($this->dbHost, $this->dbName, $this->dbUser, $this->dbPass);

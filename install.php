@@ -1,5 +1,10 @@
 <?php
 // filepath: install.php
+// Load Composer autoloader if present
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 // Load core classes without Composer autoload
 require_once __DIR__ . '/src/App/Installer.php';
 // Proactively include Database to avoid class not found on some hosts
@@ -7,6 +12,8 @@ if (!class_exists('Config\\Database')) {
     $dbPath = __DIR__ . '/src/Config/Database.php';
     if (file_exists($dbPath)) {
         require_once $dbPath;
+    } else {
+        error_log('[Installer] Missing Database.php at ' . $dbPath, 3, __DIR__ . '/installer.log');
     }
 }
 
@@ -34,6 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
+            if (!class_exists('Config\\Database')) {
+                throw new \Exception('Internal error: Database class not loaded. Ensure src/Config/Database.php exists and permissions allow reading it.');
+            }
             $installer->setCredentials($dbHost, $dbName, $dbUser, $dbPass);
             $installer->setDomain($domain, $subdomains);
             if ($installer->runInstallation()) {
