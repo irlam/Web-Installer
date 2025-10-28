@@ -481,6 +481,10 @@ HTACCESS;
             $this->generateDefaultUserFile();
             $result['defaultUserFile'] = realpath(__DIR__ . '/../../database/default_user.txt');
 
+            // Generate a simple test landing page for verification
+            $testRel = $this->generateTestLandingPage($baseDir, $this->domain);
+            if ($testRel) { $result['testPage'] = $testRel; }
+
             // Write summary for UI
             @file_put_contents(dirname(__DIR__, 2) . '/install_result.json', json_encode($result, JSON_PRETTY_PRINT));
             return true;
@@ -734,6 +738,108 @@ HTACCESS;
         $content = "Default Admin User:\nUsername: admin\nPassword: defaultpass123\nEmail: admin@example.com\n";
         file_put_contents(__DIR__ . '/../../database/default_user.txt', $content);
     }
+
+        /**
+         * Create a lightweight test landing page to verify install
+         * Returns relative path if created, otherwise null
+         */
+        private function generateTestLandingPage($baseDir, $domain)
+        {
+                $path = $baseDir . '/site_test.php';
+                // Do not overwrite if exists
+                if (file_exists($path)) {
+                        return 'site_test.php';
+                }
+                $appUrl = 'https://' . $domain;
+                $html = <<<'PHP'
+<?php
+$php = PHP_VERSION;
+$checks = [
+        'PDO' => extension_loaded('pdo'),
+        'pdo_mysql' => extension_loaded('pdo_mysql'),
+        'ZipArchive' => class_exists('ZipArchive'),
+];
+// Try DB connection if Config\Database exists
+$dbOk = null; $dbErr = '';
+if (class_exists('Config\\Database')) {
+        try {
+                // Load install summary for creds guess (not exposing values)
+                $sum = @json_decode(@file_get_contents(__DIR__ . '/install_result.json'), true);
+                if ($sum) {
+                        // We can't read creds from summary for security; just attempt via app's config if available
+                }
+                // Best effort: rely on app's Config\Database default wiring if it reads env/config
+                // This will only succeed if the app is configured to read .env/config.php
+                // No credentials are passed here.
+                $ref = new ReflectionClass('Config\\Database');
+                $ctor = $ref->getConstructor();
+                // If constructor requires params, skip connection attempt safely
+                if ($ctor && $ctor->getNumberOfRequiredParameters() === 0) {
+                        $db = new Config\Database();
+                        if (method_exists($db, 'getConnection')) {
+                                $pdo = $db->getConnection();
+                                $pdo->query('SELECT 1');
+                                $dbOk = true;
+                        }
+                }
+        } catch (Throwable $e) {
+                $dbOk = false; $dbErr = $e->getMessage();
+        }
+}
+?>
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Installation Test Page</title>
+    <style>
+        body{font-family:Arial,sans-serif;background:#f4f6f8;margin:0;padding:24px}
+        .card{max-width:800px;margin:0 auto;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:20px}
+        h1{margin:0 0 8px}
+        .ok{color:#2e7d32}.warn{color:#c62828}
+        ul{line-height:1.6}
+        .actions a{display:inline-block;margin-right:8px;margin-top:8px;padding:10px 16px;border-radius:6px;color:#fff;text-decoration:none}
+        .btn{background:#2e7d32}.btn2{background:#1565c0}.btn3{background:#6a1b9a}
+        code{background:#f6f8fa;padding:2px 6px;border-radius:4px}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Installation Test</h1>
+        <p>This page helps confirm your environment is ready and the installer ran.</p>
+        <h3>Environment</h3>
+        <ul>
+            <li>PHP: <strong><?php echo htmlspecialchars($php); ?></strong></li>
+            <?php foreach ($checks as $k=>$v): ?>
+                <li><?php echo htmlspecialchars($k); ?>: <span class="<?php echo $v?'ok':'warn'; ?>"><?php echo $v?'OK':'Missing'; ?></span></li>
+            <?php endforeach; ?>
+        </ul>
+        <h3>Database</h3>
+        <ul>
+            <?php if ($dbOk === null): ?>
+                <li>Connection test: <em>Skipped</em> (app config-driven)</li>
+            <?php elseif ($dbOk === true): ?>
+                <li>Connection test: <span class="ok">OK</span></li>
+            <?php else: ?>
+                <li>Connection test: <span class="warn">Failed</span> (<?php echo htmlspecialchars($dbErr); ?>)</li>
+            <?php endif; ?>
+        </ul>
+        <div class="actions">
+            <a class="btn" href="./">Open site</a>
+            <a class="btn2" href="install.php?download=summary">Download summary</a>
+            <a class="btn3" href="install.php?download=logs">Download logs</a>
+        </div>
+        <p style="margin-top:12px">Remove this page via the installer cleanup, or delete <code>site_test.php</code>.</p>
+    </div>
+</body>
+</html>
+PHP;
+                if (@file_put_contents($path, $html) !== false) {
+                        return 'site_test.php';
+                }
+                return null;
+        }
 
     /**
      * Display errors

@@ -77,6 +77,7 @@ if (($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['cleanup'])) {
         'packages/website.zip' => __DIR__ . '/packages/website.zip',
         'install_result.json' => __DIR__ . '/install_result.json',
         'logs.txt' => __DIR__ . '/logs.txt',
+        'site_test.php' => __DIR__ . '/site_test.php',
     ];
 
     foreach ($selected as $rel) {
@@ -194,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<li>Config files updated: ' . htmlspecialchars((string)$cfgUpd) . '</li>';
                 if (!empty($summary['zipFile'])) { echo '<li>Package used: ' . htmlspecialchars($summary['zipFile']) . '</li>'; }
                 if (!empty($summary['schemaFile'])) { echo '<li>Schema used: ' . htmlspecialchars($summary['schemaFile']) . '</li>'; }
+                if (!empty($summary['testPage'])) { echo '<li>Test page: ' . htmlspecialchars($summary['testPage']) . '</li>'; }
                 echo '</ul></div>';
                 echo '</div>';
                 echo '<h3 style="margin:10px 0;">Next steps</h3>';
@@ -205,6 +207,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '</ol>';
                 echo '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
                 echo '<a href="./" style="background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open site</a>';
+                if (!empty($summary['testPage']) && file_exists(__DIR__ . '/' . basename($summary['testPage']))) {
+                    echo '<a href="' . htmlspecialchars(basename($summary['testPage'])) . '" style="background:#00897b;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Open test page</a>';
+                }
                 echo '<a href="logs.txt" style="background:#455a64;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">View logs</a>';
                 echo '<a href="install.php?download=logs" style="background:#1565c0;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download logs</a>';
                 echo '<a href="install.php?download=summary" style="background:#6a1b9a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Download install summary</a>';
@@ -220,6 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo '<label><input type="checkbox" name="delete[]" value="packages/website.zip"> Delete packages/website.zip (optional)</label>';
                 echo '<label><input type="checkbox" name="delete[]" value="install_result.json"> Delete install_result.json (optional)</label>';
                 echo '<label><input type="checkbox" name="delete[]" value="logs.txt"> Delete logs.txt (optional)</label>';
+                echo '<label><input type="checkbox" name="delete[]" value="site_test.php" checked> Delete site_test.php (test landing)</label>';
                 echo '<div><button type="submit" style="background:#d32f2f;color:#fff;padding:10px 16px;border:none;border-radius:6px;cursor:pointer;">Secure and launch site</button></div>';
                 echo '</form>';
                 echo '</div>';
