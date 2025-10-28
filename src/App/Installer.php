@@ -23,6 +23,7 @@ class Installer
     private $config = [];
     private $domain;
     private $subdomains;
+    private $createTestPage = false;
 
     public function __construct()
     {
@@ -41,6 +42,11 @@ class Installer
     {
         $this->domain = $domain;
         $this->subdomains = $subdomains;
+    }
+
+    public function setCreateTestPage($create)
+    {
+        $this->createTestPage = (bool)$create;
     }
 
     public function promptForCredentials()
@@ -481,9 +487,11 @@ HTACCESS;
             $this->generateDefaultUserFile();
             $result['defaultUserFile'] = realpath(__DIR__ . '/../../database/default_user.txt');
 
-            // Generate a simple test landing page for verification
-            $testRel = $this->generateTestLandingPage($baseDir, $this->domain);
-            if ($testRel) { $result['testPage'] = $testRel; }
+            // Generate a simple test landing page for verification (optional)
+            if ($this->createTestPage) {
+                $testRel = $this->generateTestLandingPage($baseDir, $this->domain, $this->dbHost, $this->dbName, $this->dbUser, $this->dbPass);
+                if ($testRel) { $result['testPage'] = $testRel; }
+            }
 
             // Write summary for UI
             @file_put_contents(dirname(__DIR__, 2) . '/install_result.json', json_encode($result, JSON_PRETTY_PRINT));
@@ -743,7 +751,7 @@ HTACCESS;
          * Create a lightweight test landing page to verify install
          * Returns relative path if created, otherwise null
          */
-        private function generateTestLandingPage($baseDir, $domain)
+        private function generateTestLandingPage($baseDir, $domain, $dbHost, $dbName, $dbUser, $dbPass)
         {
                 $path = $baseDir . '/site_test.php';
                 // Do not overwrite if exists
@@ -751,7 +759,16 @@ HTACCESS;
                         return 'site_test.php';
                 }
                 $appUrl = 'https://' . $domain;
-                $html = <<<'PHP'
+            // Build DSN with optional port support if host contains :port
+            $port = 3306;
+            $hostOnly = $dbHost;
+            if (strpos($dbHost, ':') !== false) {
+                list($hostOnly, $portStr) = explode(':', $dbHost, 2);
+                if (ctype_digit($portStr)) { $port = (int)$portStr; }
+            }
+            $dsn = "mysql:host={$hostOnly};port={$port};dbname={$dbName};charset=utf8mb4";
+
+            $html = <<<'PHP'
 <?php
 $php = PHP_VERSION;
 $checks = [
@@ -759,33 +776,22 @@ $checks = [
         'pdo_mysql' => extension_loaded('pdo_mysql'),
         'ZipArchive' => class_exists('ZipArchive'),
 ];
-// Try DB connection if Config\Database exists
-$dbOk = null; $dbErr = '';
-if (class_exists('Config\\Database')) {
-        try {
-                // Load install summary for creds guess (not exposing values)
-                $sum = @json_decode(@file_get_contents(__DIR__ . '/install_result.json'), true);
-                if ($sum) {
-                        // We can't read creds from summary for security; just attempt via app's config if available
-                }
-                // Best effort: rely on app's Config\Database default wiring if it reads env/config
-                // This will only succeed if the app is configured to read .env/config.php
-                // No credentials are passed here.
-                $ref = new ReflectionClass('Config\\Database');
-                $ctor = $ref->getConstructor();
-                // If constructor requires params, skip connection attempt safely
-                if ($ctor && $ctor->getNumberOfRequiredParameters() === 0) {
-                        $db = new Config\Database();
-                        if (method_exists($db, 'getConnection')) {
-                                $pdo = $db->getConnection();
-                                $pdo->query('SELECT 1');
-                                $dbOk = true;
-                        }
-                }
-        } catch (Throwable $e) {
-                $dbOk = false; $dbErr = $e->getMessage();
+    // Explicit DB connection test using installer credentials (not echoed)
+    $dbOk = null; $dbErr = '';
+    try {
+        if ($checks['PDO'] && $checks['pdo_mysql']) {
+            $pdo = new PDO('__DSN__', '__DB_USER__', '__DB_PASS__', [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $pdo->query('SELECT 1');
+            $dbOk = true;
+        } else {
+            $dbOk = false; $dbErr = 'PDO or pdo_mysql missing';
         }
-}
+    } catch (Throwable $e) {
+        $dbOk = false; $dbErr = (string)$e->getCode();
+    }
 ?>
 <!doctype html>
 <html>
@@ -835,7 +841,11 @@ if (class_exists('Config\\Database')) {
 </body>
 </html>
 PHP;
-                if (@file_put_contents($path, $html) !== false) {
+                    // Inject DSN and credentials into the test page without echoing them
+                    $html = str_replace('__DSN__', addslashes($dsn), $html);
+                    $html = str_replace('__DB_USER__', addslashes($dbUser), $html);
+                    $html = str_replace('__DB_PASS__', addslashes($dbPass), $html);
+                    if (@file_put_contents($path, $html) !== false) {
                         return 'site_test.php';
                 }
                 return null;

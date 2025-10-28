@@ -140,6 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbName = trim($_POST['db_name'] ?? '');
     $dbUser = trim($_POST['db_user'] ?? '');
     $dbPass = trim($_POST['db_pass'] ?? '');
+    $createTest = isset($_POST['create_test_page']);
 
     installer_log('POST received. domain=' . $domain . ' subdomains=' . implode(',', $subdomains) . ' db_host=' . $dbHost . ' db_name=' . $dbName . ' user=' . $dbUser);
 
@@ -157,6 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $installer->setCredentials($dbHost, $dbName, $dbUser, $dbPass);
             $installer->setDomain($domain, $subdomains);
+            $installer->setCreateTestPage($createTest);
             if ($installer->runInstallation()) {
                 // Load result summary if available
                 $summary = [];
@@ -377,6 +379,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="db_pass">Database Password</label>
                 <input type="password" id="db_pass" name="db_pass" required>
                 <div class="help">Password for the database user. Keep it secure and note it down.</div>
+            </div>
+            <div class="form-group" style="background:#fafafa;border:1px dashed #ccc;padding:10px;border-radius:6px;">
+                <label><input type="checkbox" name="create_test_page" value="1" checked> Create test page (site_test.php) to verify PHP extensions and DB connection</label>
+                <div class="help">Recommended during testing. The test page will be offered for deletion on the success screen.</div>
             </div>
             <button type="submit">Install Website</button>
         </form>
